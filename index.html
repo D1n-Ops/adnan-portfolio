@@ -505,6 +505,56 @@
     .projectsTitle{font-size:28px;}
     .projectName{font-size:22px;}
 
+
+    /* v19 — artistic native scrolling; typography and original visual identity untouched */
+    html{
+      scroll-behavior:smooth;
+      scroll-padding-top:88px;
+      -webkit-text-size-adjust:100%;
+    }
+    body{
+      -webkit-overflow-scrolling:touch;
+      touch-action:pan-y pinch-zoom;
+    }
+    .projectsShowcase,.sec{scroll-margin-top:88px;}
+
+    /* Only opacity is held while an item waits to enter view. Animation transforms are
+       temporary Web Animations and are fully removed at completion to preserve text rendering. */
+    .scroll-reveal-pending{opacity:0;}
+
+    .topbar{
+      transition:box-shadow .28s ease, background-color .28s ease, border-color .28s ease;
+    }
+    .topbar.scroll-depth{
+      box-shadow:0 12px 30px rgba(2,6,23,.09);
+      border-color:rgba(15,23,42,.12);
+    }
+
+    /* Additional card hues only; existing project-card design is unchanged. */
+    .projectCard:nth-child(6){--cardHue:276;}
+    .projectCard:nth-child(7){--cardHue:344;}
+    .projectCard:nth-child(8){--cardHue:198;}
+
+    @media (max-width:700px){
+      html{scroll-padding-top:76px;}
+      .projectsShowcase,.sec{scroll-margin-top:76px;}
+      .wrap{padding-left:max(14px, env(safe-area-inset-left));padding-right:max(14px, env(safe-area-inset-right));}
+      .topbar-inner{padding-left:max(18px, env(safe-area-inset-left));padding-right:max(18px, env(safe-area-inset-right));}
+      .btn,.servicesLink,.projectCard{touch-action:manipulation;}
+      .btn{min-height:44px;}
+    }
+
+    @media (hover:none) and (pointer:coarse){
+      .projectCard:hover{transform:none;}
+      button:hover,.btn:hover{transform:none;}
+    }
+
+    @media (prefers-reduced-motion:reduce){
+      html{scroll-behavior:auto;}
+      .scroll-reveal-pending{opacity:1!important;}
+      .topbar{transition:none!important;}
+    }
+
   </style>
   <!-- v9 enhancement-only build: professional bio + bilingual process/governance node emphasis. Original layout preserved. -->
 </head>
@@ -529,7 +579,7 @@
     <div class="panel">
       <div class="hero">
         <div class="portrait">
-          <img src="profile.jpg" alt="Adnan Alghamdi" />
+          <img src="./profile.jpg?v=19" alt="Adnan Alghamdi" loading="eager" decoding="async" />
         </div>
 
         <div>
@@ -667,6 +717,15 @@
             <div class="projectMeta"><span class="projectBadge" data-i18n="project7Badge">Investigation</span><span class="projectStatus" data-i18n="projectStatus">Live Platform</span></div>
             <h3 class="projectName" data-i18n="project7Name">OTIS</h3>
             <p class="projectText" data-i18n="project7Desc">Supporting incident and occurrence investigations, root cause analysis, corrective actions, evidence management, and organizational learning.</p>
+          </div>
+          <div class="projectFooter"><span class="projectButton" data-i18n="viewProject">View Project</span><span class="projectArrow">↗</span></div>
+        </a>
+
+        <a class="projectCard" href="https://d1n-ops.github.io/analytica/" target="_blank" rel="noopener">
+          <div>
+            <div class="projectMeta"><span class="projectBadge" data-i18n="project8Badge">Analysis & Decision Support</span><span class="projectStatus" data-i18n="projectStatus">Live Platform</span></div>
+            <h3 class="projectName" data-i18n="project8Name">ANALYTICA</h3>
+            <p class="projectText" data-i18n="project8Desc">Supporting structured multi-method analysis through guided workflows, analytical models, validation, and decision-ready outputs.</p>
           </div>
           <div class="projectFooter"><span class="projectButton" data-i18n="viewProject">View Project</span><span class="projectArrow">↗</span></div>
         </a>
@@ -985,6 +1044,9 @@
         project7Badge: "Investigation",
         project7Name: "OTIS",
         project7Desc: "Supporting incident and occurrence investigations, root cause analysis, corrective actions, evidence management, and organizational learning.",
+        project8Badge: "Analysis & Decision Support",
+        project8Name: "ANALYTICA",
+        project8Desc: "Supporting structured multi-method analysis through guided workflows, analytical models, validation, and decision-ready outputs.",
         nav1: "Safety Leadership & Risk Governance",
         nav2: "Environmental Compliance & Sustainability",
         nav3: "Integrated Management Systems",
@@ -1033,6 +1095,9 @@
         project7Badge: "التحقيق",
         project7Name: "OTIS",
         project7Desc: "دعم تحقيقات الحوادث والوقائع، وتحليل الأسباب الجذرية، والإجراءات التصحيحية، وإدارة الأدلة، والتعلم المؤسسي.",
+        project8Badge: "التحليل ودعم القرار",
+        project8Name: "ANALYTICA",
+        project8Desc: "دعم التحليل المنهجي متعدد الأساليب عبر مسارات موجهة، ونماذج تحليلية، والتحقق، ومخرجات جاهزة لدعم القرار.",
         nav1: "القيادة في السلامة وحوكمة المخاطر",
         nav2: "الامتثال البيئي والاستدامة",
         nav3: "أنظمة الإدارة المتكاملة",
@@ -1151,6 +1216,85 @@
       return sec;
     }
 
+
+    // v19 — native scroll choreography. No scroll-jacking and no permanent transforms/filters.
+    let revealObserver = null;
+    let topbarFrame = 0;
+
+    function revealElement(el, index){
+      if(el.dataset.revealed === '1') return;
+      el.dataset.revealed = '1';
+
+      const mobile = window.matchMedia('(max-width:700px)').matches;
+      const isCard = el.classList.contains('projectCard') || el.classList.contains('card');
+      const isSection = el.classList.contains('sec');
+      const direction = (index % 2 === 0) ? -1 : 1;
+
+      const startX = mobile ? 0 : (isSection ? direction * 18 : (isCard ? direction * 12 : 0));
+      const startY = mobile ? 16 : (isCard ? 24 : 30);
+      const startScale = mobile ? .996 : (isCard ? .988 : .994);
+      const delay = isCard ? Math.min((index % 5) * 55, 220) : Math.min((index % 3) * 45, 90);
+
+      const animation = el.animate([
+        {opacity:0, transform:`translate3d(${startX}px,${startY}px,0) scale(${startScale})`, offset:0},
+        {opacity:.72, transform:'translate3d(0,-2px,0) scale(1.002)', offset:.72},
+        {opacity:1, transform:'none', offset:1}
+      ], {
+        duration: mobile ? 520 : 720,
+        delay,
+        easing:'cubic-bezier(.22,.78,.24,1)',
+        fill:'both'
+      });
+
+      animation.onfinish = ()=>{
+        el.classList.remove('scroll-reveal-pending');
+        animation.cancel(); // restores the original CSS: no transform, no font-compositing change
+      };
+      animation.oncancel = ()=>el.classList.remove('scroll-reveal-pending');
+    }
+
+    function setupScrollTransitions(){
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if(revealObserver){revealObserver.disconnect(); revealObserver=null;}
+
+      // Never animate the hero/portrait. Keep the first impression and profile image completely stable.
+      const targets = [
+        ...document.querySelectorAll('.projectsShowcase'),
+        ...document.querySelectorAll('.projectCard'),
+        ...document.querySelectorAll('.sec'),
+        ...document.querySelectorAll('.sec .card')
+      ].filter(el=>el.dataset.revealed !== '1');
+
+      if(reduce || !('IntersectionObserver' in window)){
+        targets.forEach(el=>{el.dataset.revealed='1'; el.classList.remove('scroll-reveal-pending');});
+        return;
+      }
+
+      targets.forEach(el=>el.classList.add('scroll-reveal-pending'));
+      revealObserver = new IntersectionObserver((entries)=>{
+        entries.forEach(entry=>{
+          if(entry.isIntersecting){
+            const idx = targets.indexOf(entry.target);
+            revealObserver.unobserve(entry.target);
+            revealElement(entry.target, idx < 0 ? 0 : idx);
+          }
+        });
+      }, {threshold:0.08, rootMargin:'0px 0px -5% 0px'});
+      targets.forEach(el=>revealObserver.observe(el));
+    }
+
+    function updateTopbarDepth(){
+      topbarFrame=0;
+      const bar=document.querySelector('.topbar');
+      if(bar) bar.classList.toggle('scroll-depth',(window.scrollY||0)>10);
+    }
+    function requestTopbarDepth(){
+      if(topbarFrame) return;
+      topbarFrame=requestAnimationFrame(updateTopbarDepth);
+    }
+    window.addEventListener('scroll',requestTopbarDepth,{passive:true});
+
+
     function applyI18n(){
       document.querySelectorAll("[data-i18n]").forEach(elm=>{
         const key = elm.getAttribute("data-i18n");
@@ -1181,6 +1325,8 @@
       });
 
       collapseAll(false);
+      setupScrollTransitions();
+      requestTopbarDepth();
     }
 
     function expandAll(){
